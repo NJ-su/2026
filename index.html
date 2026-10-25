@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Word Catcher</title>
+<style>
+:root{box-sizing:border-box}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#1b2a41;font-family:"Trebuchet MS","Comic Sans MS",Arial,sans-serif;overflow:hidden}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+#stage{position:relative;width:800px;height:600px}
+canvas{width:100%;height:100%;display:block;border-radius:12px;touch-action:none;cursor:none;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:12px;background:rgba(20,40,70,.55)}
+#overlay.hidden{display:none}
+#overlay.clear{background:rgba(20,40,70,.12)}
+.card{background:#fffbea;border:5px solid #ff9f1c;border-radius:22px;padding:22px 30px;text-align:center;max-width:82%;box-shadow:0 10px 0 #d97706;color:#3a2a12}
+.card h1{margin:0 0 6px;font-size:clamp(24px,5vw,42px);color:#e63946}
+.card h2{margin:0 0 6px;font-size:clamp(20px,4vw,32px);color:#2a9d8f}
+.card p{margin:6px 0;font-size:clamp(13px,2.2vw,19px);line-height:1.45}
+.rules{text-align:left;display:inline-block;font-size:clamp(12px,2vw,17px)}
+.rules div{margin:3px 0}
+button{font:inherit;font-size:clamp(16px,3vw,24px);font-weight:bold;color:#fff;background:#2a9d8f;border:none;border-radius:14px;padding:10px 28px;margin-top:12px;cursor:pointer;box-shadow:0 5px 0 #1d6f65}
+button:active{transform:translateY(4px);box-shadow:0 1px 0 #1d6f65}
+#tools{position:absolute;top:calc(10.8% + 4px);right:10px;display:flex;gap:6px;z-index:3}
+#tools button{margin:0;padding:4px 10px;font-size:15px;background:rgba(255,255,255,.85);color:#333;box-shadow:0 3px 0 rgba(0,0,0,.25)}
+/* start screen */
+.card.menu{background:rgba(255,251,234,.93);padding:clamp(8px,2vw,18px) clamp(14px,3vw,28px);max-width:90%}
+.logo{display:flex;align-items:center;justify-content:center;gap:clamp(6px,1.5vw,14px)}
+.bk{position:relative;font-size:clamp(34px,8vw,70px);line-height:1}
+.bk i{position:absolute;left:50%;top:-34%;transform:translateX(-50%);font-style:normal;font-size:.45em;white-space:nowrap}
+.t span{display:inline-block;font-family:"Arial Rounded MT Bold","Trebuchet MS",sans-serif;font-weight:900;font-size:clamp(26px,6.5vw,52px);color:var(--c);paint-order:stroke fill;-webkit-text-stroke:clamp(4px,1vw,8px) #fff;text-shadow:0 4px 0 rgba(0,0,0,.2);animation:hop 1.3s ease-in-out infinite;animation-delay:calc(var(--i)*.09s)}
+@keyframes hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+.chips{display:flex;justify-content:center;gap:clamp(6px,1.5vw,12px);margin:clamp(4px,1vw,10px) 0}
+.chip{background:#fff;border:3px solid #ffd9a0;border-radius:14px;padding:3px clamp(8px,2vw,16px);font-size:clamp(14px,3vw,24px);font-weight:bold}
+.how{font-size:clamp(11px,1.8vw,15px);background:none;color:#2a7a70;box-shadow:none;padding:2px 8px;margin:0;text-decoration:underline}
+#howbox{display:none;margin-top:4px}
+#start{font-size:clamp(20px,4.5vw,36px);padding:clamp(6px,1.5vw,12px) clamp(30px,8vw,70px);background:#e63946;box-shadow:0 6px 0 #a4202c;animation:pulse 1.1s ease-in-out infinite;margin-top:clamp(4px,1vw,10px)}
+@keyframes pulse{0%,100%{scale:1}50%{scale:1.08}}
+.row{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:clamp(6px,1.5vw,12px);font-size:clamp(11px,2vw,16px);font-weight:bold}
+.row button{margin:0;font-size:clamp(12px,2.2vw,18px);padding:4px clamp(8px,2vw,14px);box-shadow:0 3px 0 #1d6f65;border-radius:10px}
+.row button.off{background:#c9c2ae;box-shadow:0 3px 0 #9d967f;color:#fff}
+.row button:disabled{background:#d8d2c0;box-shadow:0 3px 0 #b3ad98;cursor:not-allowed}
+.row button.sel{background:#ff9f1c;box-shadow:0 3px 0 #c97a00}
+.best{margin-top:clamp(4px,1vw,10px);font-size:clamp(12px,2.2vw,17px);font-weight:bold;color:#b45309}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="game" width="800" height="600"></canvas>
+    <div id="tools">
+      <button id="btnPause" title="Pause (P or Space)">⏸️</button>
+      <button id="btnSound" title="Sound on/off">🔊</button>
+      <button id="btnMusic" title="Music on/off">🎵</button>
+      <button id="btnSpeak" title="Read words aloud on/off">🗣️</button>
+      <button id="btnFull" title="Full screen">⛶</button>
+    </div>
+    <div id="overlay"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  let W = 800; const H = 600;
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+
+  const BANK = {
+    fruit:['apple','banana','orange','grape','pear','peach','lemon','mango','melon','cherry','strawberry','watermelon','pineapple','kiwi','plum'],
+    vehicle:['car','bus','train','bike','plane','ship','truck','taxi','boat','subway'],
+    furniture:['chair','table','bed','desk','sofa','shelf','lamp','closet'],
+    animal:['dog','cat','bird','fish','rabbit','tiger','horse','monkey','elephant','cow','pig','lion'],
+    school:['pen','book','ruler','pencil','eraser','bag','notebook','teacher'],
+    color:['red','blue','green','yellow','pink','purple','black','white','brown','orange'],
+    body:['hand','foot','head','eye','ear','nose','mouth','arm','leg','face'],
+    food:['bread','rice','egg','milk','cake','cookie','noodles','pizza','candy']
+  };
+  const NAMES = { fruit:'FRUITS', vehicle:'TRANSPORTATION', furniture:'FURNITURE', animal:'ANIMALS', school:'SCHOOL THINGS', color:'COLORS', body:'BODY PARTS', food:'FOOD' };
+  const LEVELS = [
+    { target:'fruit',   avoid:['vehicle','furniture'],         goal:80,  speed:120 },
+    { target:'animal',  avoid:['fruit','vehicle','furniture'], goal:100, speed:140 },
+    { target:'vehicle', avoid:['animal','body','food'],        goal:120, speed:160 },
+    { target:'school',  avoid:['furniture','color','fruit'],   goal:140, speed:180 },
+    { target:'body',    avoid:['food','animal','school'],      goal:160, speed:200 }
+  ];
+  const DIFF = { easy:{ name:'Easy', time:90, bomb:.07, spd:.85 }, normal:{ name:'Normal', time:60, bomb:.14, spd:1 } };
+  const COLORS = ['#ff595e','#ff924c','#ffca3a','#8ac926','#1982c4','#6a4c93','#f15bb5','#00bbf9'];
+
+  /* ---------- Saved progress ---------- */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('wc_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('wc_' + k, JSON.stringify(v)); } catch (e) {} }
+  };
+  let diff = store.get('diff', 'normal'); if (!DIFF[diff]) diff = 'normal';
+  let unlocked = store.get('unlocked', 0);
+  const levelTime = () => DIFF[diff].time;
+
+  /* ---------- State ---------- */
+  let state = 'menu';
+  let level = 0, score = 0, totalScore = 0, timeLeft = 60;
+  let items = [], floaters = [], spawnTimer = 0, shake = 0, flash = 0, flashColor = '#fff';
+  const basket = { x: W/2, y: H - 70, w: 130, h: 70, tx: W/2 };
+  const keys = {};
+  let soundOn = true, speakOn = true, musicOn = true, last = 0;
+  let correct = 0, wrong = 0, bombsHit = 0, runCorrect = 0, runWrong = 0, runBombs = 0;
+  const clouds = Array.from({length:7}, (_, i) => ({ x: i*170, y: 80 + (i%3)*50, s: .7 + (i%3)*.25, v: 8 + i*2 }));
+
+  /* ---------- Audio ---------- */
+  let ac = null;
+  function beep(freq, dur, type='sine', vol=.15, slide=0) {
+    if (!soundOn) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.value = freq;
+      if (slide) o.frequency.linearRampToValueAtTime(freq + slide, ac.currentTime + dur);
+      g.gain.value = vol; g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + dur);
+      o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
+    } catch (e) {}
+  }
+  const seq = (notes, gap, type, vol) => notes.forEach((f, i) => setTimeout(() => beep(f, .2, type, vol), i * gap));
+  const sfx = {
+    good: () => { beep(660, .12, 'triangle'); setTimeout(() => beep(880, .15, 'triangle'), 80); },
+    bad:  () => beep(200, .25, 'sawtooth', .12, -80),
+    bomb: () => beep(90, .5, 'square', .2, -50),
+    win:  () => seq([523,659,784,1046], 130, 'triangle', .15),
+    start:() => seq([392,523,659,784,1046], 90, 'square', .08)
+  };
+  // light background music (plays only while a level is running)
+  const MEL = [523,659,784,659,587,698,880,698,523,659,784,1046,880,784,659,587];
+  let step = 0;
+  setInterval(() => {
+    if (!musicOn || state !== 'playing') return;
+    beep(MEL[step % 16], .18, 'triangle', .05);
+    if (step % 4 === 0) beep(MEL[step % 16] / 4, .45, 'sine', .07);
+    step++;
+  }, 230);
+  function speak(word) {
+    if (!speakOn || !('speechSynthesis' in window)) return;
+    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(word); u.lang = 'en-US'; u.rate = .9; speechSynthesis.speak(u); } catch (e) {}
+  }
+
+  /* ---------- Helpers ---------- */
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  function spawn() {
+    const L = LEVELS[level], P = DIFF[diff], r = Math.random();
+    const it = { x: rand(50, W - 50), y: -40, r: 40,
+                 vy: (L.speed + rand(0, 60) + (levelTime() - timeLeft) * 0.4) * P.spd, wob: rand(0, 6.28), color: pick(COLORS) };
+    if (r < P.bomb) { it.kind = 'bomb'; it.r = 30; it.vy *= 1.05; }
+    else if (r < P.bomb + .44) { it.kind = 'good'; it.word = pick(BANK[L.target]); }
+    else {
+      it.kind = 'bad';
+      let w; do { w = pick(BANK[pick(L.avoid)]); } while (BANK[L.target].includes(w));
+      it.word = w;
+    }
+    items.push(it);
+  }
+  const addFloater = (text, x, y, color) => floaters.push({ text, x, y, color, life: 1 });
+
+  function startLevel(n) {
+    level = n; score = 0; timeLeft = levelTime();
+    items = []; floaters = []; spawnTimer = 0; correct = 0; wrong = 0; bombsHit = 0;
+    hideOverlay(); state = 'playing';
+  }
+  function showOverlay(html) { overlay.innerHTML = html; overlay.classList.remove('hidden', 'clear'); }
+  function hideOverlay() { overlay.classList.add('hidden'); overlay.innerHTML = ''; }
+  function bindBtn(id, fn) { const b = document.getElementById(id); if (b) b.onclick = () => { b.blur(); fn(); }; }
+
+  /* ---------- Pause ---------- */
+  const btnPause = document.getElementById('btnPause');
+  function togglePause() {
+    if (state === 'playing') {
+      state = 'paused'; btnPause.textContent = '▶️';
+      try { speechSynthesis.cancel(); } catch (e) {}
+      showOverlay(`<div class="card"><h2>⏸️ Paused</h2><p>Take a break! Your game is waiting.</p>
+        <p style="font-size:clamp(11px,1.8vw,15px);opacity:.7">Press <b>P</b> or <b>Space</b> to continue</p><button id="go">Resume ▶</button></div>`);
+      bindBtn('go', togglePause);
+    } else if (state === 'paused') {
+      state = 'playing'; btnPause.textContent = '⏸️'; hideOverlay();
+    }
+  }
+  btnPause.onclick = () => { btnPause.blur(); togglePause(); };
+  window.addEventListener('keydown', e => {
+    if (e.key === 'p' || e.key === 'P' || e.key === ' ') { e.preventDefault(); if (!e.repeat) togglePause(); }
+  });
+  window.addEventListener('blur', () => { if (state === 'playing') togglePause(); });
+
+  /* ---------- Grade & best record ---------- */
+  function finalGrade() {
+    const total = runCorrect + runWrong + runBombs;
+    const acc = total ? Math.round(runCorrect / total * 100) : 0;
+    let g;
+    if (acc >= 92)      g = { stars: 4, rank: 'S', title: 'Word Master! 🏆', msg: 'Incredible! You caught almost every right word. Your English is shining bright!' };
+    else if (acc >= 80) g = { stars: 3, rank: 'A', title: 'Great Job! 🌟', msg: 'Awesome work! Just a few little mistakes — you are really good at this!' };
+    else if (acc >= 65) g = { stars: 2, rank: 'B', title: 'Good Work! 👍', msg: 'Nice try! You know many words. Practice a bit more and you will be a master!' };
+    else                g = { stars: 1, rank: 'C', title: 'Keep Going! 💪', msg: 'You finished all the levels — that is amazing! Play again and aim for a higher rank!' };
+    g.acc = acc; return g;
+  }
+  function saveBest(sc, rank) {
+    const b = store.get('best_' + diff, null);
+    const nb = b ? { score: Math.max(b.score, sc), rank: 'SABC'.indexOf(rank) < 'SABC'.indexOf(b.rank) ? rank : b.rank } : { score: sc, rank };
+    store.set('best_' + diff, nb);
+  }
+
+  /* ---------- Screens ---------- */
+  function menuScreen() {
+    state = 'menu'; totalScore = 0; runCorrect = runWrong = runBombs = 0;
+    btnPause.textContent = '⏸️'; items = []; floaters = []; spawnTimer = 0; timeLeft = levelTime(); level = 0;
+    const best = store.get('best_' + diff, null);
+    const letters = 'Word Catcher'.split('').map((c, i) => c === ' ' ? '<span style="width:.3em"></span>' : `<span style="--c:${COLORS[i % COLORS.length]};--i:${i}">${c}</span>`).join('');
+    const lv = LEVELS.map((_, i) => `<button class="lvb" data-n="${i}" ${i > unlocked ? 'disabled' : ''}>${i > unlocked ? '🔒' : i + 1}</button>`).join('');
+    showOverlay(`
+      <div class="card menu">
+        <div class="logo"><div class="bk"><i>🍎🍌🍇</i>🧺</div><div class="t">${letters}</div></div>
+        <div class="chips"><div class="chip">✅ +10</div><div class="chip">❌ −10</div><div class="chip">💣 −20</div></div>
+        <button class="how" id="how">How to Play ▾</button>
+        <div id="howbox"><div class="rules">
+          <div>✅ Catch the target words: <b>+10</b></div><div>❌ Wrong words: <b>−10</b></div>
+          <div>💣 Bombs: <b>−20</b> — dodge them!</div><div>⏱️ Reach the goal score before time runs out.</div>
+          <div>🖱️ Mouse / finger / ← → keys to move.</div></div></div>
+        <div><button id="start">START</button></div>
+        <div class="row">Level: ${lv}</div>
+        <div class="row">Mode: <button class="dfb ${diff === 'easy' ? 'sel' : ''}" data-d="easy">Easy</button><button class="dfb ${diff === 'normal' ? 'sel' : ''}" data-d="normal">Normal</button></div>
+        <div class="best">${best ? `🏆 Best (${DIFF[diff].name}): ${best.score} pts · Rank ${best.rank}` : `🏆 No record yet — be the first!`}</div>
+      </div>`);
+    overlay.classList.add('clear');
+    bindBtn('how', () => { const b = document.getElementById('howbox'); b.style.display = b.style.display === 'block' ? 'none' : 'block'; });
+    bindBtn('start', () => { sfx.start(); levelIntro(0); });
+    overlay.querySelectorAll('.lvb').forEach(b => b.onclick = () => { if (b.disabled) return; sfx.start(); levelIntro(+b.dataset.n); });
+    overlay.querySelectorAll('.dfb').forEach(b => b.onclick = () => { diff = b.dataset.d; store.set('diff', diff); menuScreen(); });
+  }
+
+  function levelIntro(n) {
+    level = n; state = 'intro';
+    const L = LEVELS[n];
+    showOverlay(`
+      <div class="card">
+        <h2>Level ${n + 1} / ${LEVELS.length}</h2>
+        <p style="font-size:clamp(18px,3.5vw,28px)">Catch only:<br><b style="color:#e63946;font-size:clamp(26px,6vw,46px)">${NAMES[L.target]}</b></p>
+        <p>Don’t catch: ${L.avoid.map(c => '<b>' + NAMES[c] + '</b>').join(', ')} and 💣</p>
+        <p>Goal: <b>${L.goal}</b> points in ${levelTime()} seconds</p>
+        <button id="go">Let’s go!</button>
+      </div>`);
+    bindBtn('go', () => startLevel(n));
+  }
+
+  function endLevel(passed) {
+    const L = LEVELS[level];
+    runCorrect += correct; runWrong += wrong; runBombs += bombsHit;
+    if (passed) {
+      totalScore += score; sfx.win(); state = 'between';
+      unlocked = Math.max(unlocked, Math.min(level + 1, LEVELS.length - 1)); store.set('unlocked', unlocked);
+      if (level === LEVELS.length - 1) {
+        const g = finalGrade(); saveBest(totalScore, g.rank);
+        const stars = '⭐'.repeat(g.stars) + '<span style="opacity:.25">' + '⭐'.repeat(4 - g.stars) + '</span>';
+        showOverlay(`
+          <div class="card">
+            <h1>🎉 All Levels Clear! 🎉</h1>
+            <div style="font-size:clamp(26px,6vw,46px);margin:2px 0">${stars}</div>
+            <h2>Rank ${g.rank} — ${g.title}</h2>
+            <p>${g.msg}</p>
+            <p>Total score: <b>${totalScore}</b> &nbsp;|&nbsp; Accuracy: <b>${g.acc}%</b></p>
+            <p>Correct: <b>${runCorrect}</b> &nbsp;|&nbsp; Wrong words: <b>${runWrong}</b> &nbsp;|&nbsp; Bombs: <b>${runBombs}</b></p>
+            <button id="go">Play Again</button>
+          </div>`);
+        bindBtn('go', menuScreen);
+        return;
+      }
+      showOverlay(`
+        <div class="card"><h2>⭐ Level Complete!</h2>
+          <p>Score: <b>${score}</b> &nbsp;|&nbsp; Correct: <b>${correct}</b> &nbsp;|&nbsp; Wrong: <b>${wrong}</b> &nbsp;|&nbsp; Bombs: <b>${bombsHit}</b></p>
+          <button id="go">Next Level ▶</button></div>`);
+      bindBtn('go', () => levelIntro(level + 1));
+    } else {
+      state = 'between';
+      showOverlay(`
+        <div class="card"><h2 style="color:#e63946">⏰ Time’s up!</h2>
+          <p>You scored <b>${score}</b>, the goal was <b>${L.goal}</b>.</p>
+          <p>Correct: <b>${correct}</b> &nbsp;|&nbsp; Wrong: <b>${wrong}</b> &nbsp;|&nbsp; Bombs: <b>${bombsHit}</b></p>
+          <button id="go">Try Again</button> <button id="home" style="background:#8d8d8d;box-shadow:0 5px 0 #5f5f5f">Menu</button></div>`);
+      bindBtn('go', () => levelIntro(level));
+      bindBtn('home', menuScreen);
+    }
+  }
+
+  /* ---------- Input ---------- */
+  function setTargetFromClientX(cx) { const rect = canvas.getBoundingClientRect(); basket.tx = (cx - rect.left) * W / rect.width; }
+  canvas.addEventListener('mousemove', e => { if (state !== 'menu') setTargetFromClientX(e.clientX); });
+  canvas.addEventListener('touchstart', e => { setTargetFromClientX(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
+  canvas.addEventListener('touchmove',  e => { setTargetFromClientX(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
+  window.addEventListener('keydown', e => { keys[e.key] = true; });
+  window.addEventListener('keyup',   e => { keys[e.key] = false; });
+  document.getElementById('btnSound').onclick = e => { soundOn = !soundOn; e.target.textContent = soundOn ? '🔊' : '🔇'; };
+  document.getElementById('btnSpeak').onclick = e => { speakOn = !speakOn; e.target.style.opacity = speakOn ? 1 : .45; };
+  document.getElementById('btnMusic').onclick = e => { musicOn = !musicOn; e.target.style.opacity = musicOn ? 1 : .45; };
+
+  /* ---------- Update ---------- */
+  const inCatch = it => Math.abs(it.x - basket.x) < basket.w / 2 + it.r * .35 && it.y + it.r > basket.y - 6 && it.y < basket.y + 24;
+
+  // start-screen demo: items fall and the basket catches the good ones by itself
+  function demo(dt) {
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) { spawn(); spawnTimer = .8 + rand(0, .5); }
+    let tgt = null;
+    for (const it of items) {
+      it.y += it.vy * dt * .7; it.x += Math.sin(performance.now() / 500 + it.wob) * 12 * dt;
+      if (it.kind === 'good' && it.y > 40 && it.y < basket.y - 30 && (!tgt || it.y > tgt.y)) tgt = it;
+      if (!it.done && inCatch(it)) {
+        it.done = true;
+        if (it.kind === 'good') { sfx.good(); addFloater('+10', it.x, basket.y - 30, '#2e9e2e'); }
+      }
+    }
+    if (tgt) basket.tx += (tgt.x - basket.tx) * Math.min(1, dt * 5);
+    items = items.filter(it => !it.done && it.y < H + 60);
+  }
+
+  function update(dt) {
+    clouds.forEach(c => { c.x += c.v * dt; if (c.x > W + 100) c.x = -140; });
+    if (shake > 0) shake = Math.max(0, shake - dt * 30);
+    if (flash > 0) flash = Math.max(0, flash - dt * 2.5);
+    floaters.forEach(f => { f.y -= 50 * dt; f.life -= dt * 1.2; });
+    floaters = floaters.filter(f => f.life > 0);
+
+    if (state === 'menu') {
+      demo(dt);
+    } else {
+      const k = 600 * dt;
+      if (keys['ArrowLeft'] || keys['a'] || keys['A']) basket.tx -= k;
+      if (keys['ArrowRight'] || keys['d'] || keys['D']) basket.tx += k;
+    }
+    basket.tx = Math.max(basket.w / 2, Math.min(W - basket.w / 2, basket.tx));
+    basket.x += (basket.tx - basket.x) * Math.min(1, dt * (state === 'menu' ? 6 : 18));
+    if (state !== 'playing') return;
+
+    timeLeft -= dt; spawnTimer -= dt;
+    if (spawnTimer <= 0) { spawn(); spawnTimer = Math.max(.45, .95 - level * .08) + rand(0, .25); }
+
+    const L = LEVELS[level];
+    for (const it of items) {
+      it.y += it.vy * dt;
+      it.x += Math.sin(performance.now() / 500 + it.wob) * 12 * dt;
+      if (!it.done && inCatch(it)) {
+        it.done = true;
+        if (it.kind === 'good') { score += 10; correct++; sfx.good(); speak(it.word); addFloater('+10', it.x, basket.y - 30, '#2e9e2e'); }
+        else if (it.kind === 'bad') { score = Math.max(0, score - 10); wrong++; sfx.bad(); shake = 6; flashColor = '#ff3b3b'; flash = .5; addFloater('−10  ' + it.word + ' ✗', it.x, basket.y - 30, '#d62828'); }
+        else { score = Math.max(0, score - 20); bombsHit++; sfx.bomb(); shake = 16; flashColor = '#ffa200'; flash = .8; addFloater('💥 −20', it.x, basket.y - 30, '#d62828'); }
+      }
+    }
+    items = items.filter(it => !it.done && it.y < H + 60);
+    if (score >= L.goal) endLevel(true);
+    else if (timeLeft <= 0) { timeLeft = 0; endLevel(false); }
+  }
+
+  /* ---------- Drawing ---------- */
+  const THEMES = [
+    { sky:['#6ec6ff','#b9e6ff','#fff3d4'], sun:'#ffe066', far:'#a9d8f0', h:['#b6e48a','#8fd16a','#6bbf59'], ground:'#58a846', tuft:'#6dc15a', tree:['#2f9e44','#51c466'], cloud:'rgba(255,255,255,.92)' },
+    { sky:['#ff8f6b','#ffc28a','#ffeabf'], sun:'#fff0b3', far:'#e9a98f', h:['#d9c76a','#b4b94f','#8fa63f'], ground:'#7f9c36', tuft:'#9ab94a', tree:['#7a8f2d','#a6bd48'], cloud:'rgba(255,236,214,.85)' },
+    { sky:['#4cc9f0','#a0e7f5','#f3fbe6'], sun:'#fff3a0', far:'#8fdad0', h:['#8ee8c9','#58d3ae','#33b891'], ground:'#2ea386', tuft:'#4cc6a6', tree:['#1f9d8b','#46c9b0'], cloud:'rgba(255,255,255,.95)' },
+    { sky:['#f7a65a','#ffd29a','#fff1d6'], sun:'#fff0c0', far:'#e8b48a', h:['#f4c06a','#e49a45','#c97a2c'], ground:'#b66a22', tuft:'#d98a3a', tree:['#c4521d','#f08a3a'], cloud:'rgba(255,245,230,.9)' },
+    { night:1, sky:['#141a4a','#3a3a9a','#7a5bc0'], sun:'#fff7d6', far:'#4a4a9a', h:['#3b4a8f','#2f3c78','#252f62'], ground:'#1d2652', tuft:'#2d3a7a', tree:['#1d3d5f','#2f6a8a'], cloud:'rgba(200,210,255,.2)' }
+  ];
+  let bgCache = null, bgKey = '';
+  function buildBg(t) {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const sk = g.createLinearGradient(0, 0, 0, H);
+    sk.addColorStop(0, t.sky[0]); sk.addColorStop(.55, t.sky[1]); sk.addColorStop(1, t.sky[2]);
+    g.fillStyle = sk; g.fillRect(0, 0, W, H);
+    if (t.night) { g.fillStyle = '#fff'; for (let i = 0; i < 70; i++) { g.globalAlpha = rand(.3, 1); g.beginPath(); g.arc(rand(0, W), rand(70, 330), rand(.6, 1.8), 0, 7); g.fill(); } g.globalAlpha = 1; }
+    const sx = W - 110, sy = 130, gl = g.createRadialGradient(sx, sy, 20, sx, sy, 120);
+    gl.addColorStop(0, t.night ? 'rgba(255,247,214,.45)' : 'rgba(255,240,170,.7)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gl; g.fillRect(sx - 130, sy - 130, 260, 260);
+    g.fillStyle = t.sun; g.beginPath(); g.arc(sx, sy, 42, 0, 7); g.fill();
+    const hill = (base, amp, fr, ph, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W; x += 8) g.lineTo(x, base + Math.sin(x * fr + ph) * amp); g.lineTo(W, H); g.fill(); };
+    hill(360, 36, .005, 1, t.far); hill(410, 30, .007, 0, t.h[0]); hill(468, 24, .01, 2.2, t.h[1]); hill(522, 16, .013, 4, t.h[2]);
+    g.fillStyle = t.ground; g.fillRect(0, H - 44, W, 44);
+    g.fillStyle = t.tuft;
+    for (let x = 0; x < W; x += 22) { g.beginPath(); g.moveTo(x, H - 44); g.lineTo(x + 6, H - 56); g.lineTo(x + 12, H - 44); g.fill(); }
+    const tree = (x, y, s) => {
+      g.fillStyle = '#7a4f2a'; g.fillRect(x - 7 * s, y - 70 * s, 14 * s, 74 * s);
+      g.fillStyle = t.tree[0];
+      [[0, -88, 40], [-26, -66, 28], [26, -66, 28]].forEach(([dx, dy, r]) => { g.beginPath(); g.arc(x + dx * s, y + dy * s, r * s, 0, 7); g.fill(); });
+      g.fillStyle = t.tree[1]; g.beginPath(); g.arc(x - 10 * s, y - 98 * s, 22 * s, 0, 7); g.fill();
+    };
+    tree(W * .3, H - 44, .6); tree(62, H - 40, 1); tree(W - 60, H - 40, 1.1);
+    const bush = (x, r) => { g.fillStyle = t.tree[0]; g.beginPath(); g.ellipse(x, H - 44, r, r * .6, 0, Math.PI, 0); g.fill(); };
+    bush(W * .55, 34); bush(W * .78, 26);
+    const fl = ['#ff6b81','#ffd93d','#ffffff','#ff9ff3','#74b9ff'];
+    for (let i = 0; i < 40; i++) { const x = rand(0, W), y = rand(H - 38, H - 6); g.fillStyle = pick(fl); g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); g.fillStyle = '#ffb703'; g.beginPath(); g.arc(x, y, 1.2, 0, 7); g.fill(); }
+    return c;
+  }
+  function drawBackground() {
+    const t = THEMES[level % THEMES.length], k = level + '_' + W;
+    if (k !== bgKey) { bgCache = buildBg(t); bgKey = k; }
+    ctx.drawImage(bgCache, 0, 0);
+    ctx.fillStyle = t.cloud;
+    clouds.forEach(c => { ctx.beginPath(); ctx.arc(c.x, c.y, 24 * c.s, 0, 7); ctx.arc(c.x + 26 * c.s, c.y - 10 * c.s, 30 * c.s, 0, 7); ctx.arc(c.x + 56 * c.s, c.y, 24 * c.s, 0, 7); ctx.fill(); });
+  }
+
+  function drawBasket() {
+    const { x, y, w, h } = basket;
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = '#7b4a1e'; ctx.beginPath(); ctx.ellipse(0, 0, w / 2, 12, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#c98a4b';
+    ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(-w / 2 + 16, h - 16); ctx.quadraticCurveTo(0, h + 8, w / 2 - 16, h - 16); ctx.lineTo(w / 2, 0); ctx.quadraticCurveTo(0, 18, -w / 2, 0); ctx.fill();
+    ctx.strokeStyle = '#8f5a26'; ctx.lineWidth = 2;
+    for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(i * 17, 10); ctx.lineTo(i * 14, h - 6); ctx.stroke(); }
+    for (let j = 1; j <= 3; j++) { ctx.beginPath(); ctx.moveTo(-w / 2 + j * 5, j * 17); ctx.quadraticCurveTo(0, j * 17 + 14, w / 2 - j * 5, j * 17); ctx.stroke(); }
+    ctx.strokeStyle = '#7b4a1e'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.quadraticCurveTo(0, 22, w / 2, 0); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawItem(it) {
+    ctx.save(); ctx.translate(it.x, it.y);
+    if (it.kind === 'bomb') {
+      ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(0, 0, it.r, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.arc(-10, -11, 8, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#8d6e3f'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(8, -it.r + 4); ctx.quadraticCurveTo(18, -it.r - 10, 26, -it.r - 6); ctx.stroke();
+      const t = performance.now() / 90;
+      ctx.fillStyle = (Math.floor(t) % 2) ? '#ffd23f' : '#ff5a1f';
+      ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 ? 5 : 11; ctx.lineTo(28 + Math.cos(a) * rr, -it.r - 6 + Math.sin(a) * rr); } ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('BOMB', 0, 4);
+    } else {
+      let fs = 22; ctx.font = 'bold 22px "Trebuchet MS", Arial';
+      while (ctx.measureText(it.word).width > 100 && fs > 11) { fs--; ctx.font = `bold ${fs}px "Trebuchet MS", Arial`; }
+      const tw = ctx.measureText(it.word).width, rx = Math.max(it.r, tw / 2 + 14), ry = 32;
+      ctx.fillStyle = it.color; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(-rx * .35, -ry * .45, rx * .35, ry * .2, -.4, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 4; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.strokeText(it.word, 0, 2); ctx.fillText(it.word, 0, 2);
+    }
+    ctx.restore();
+  }
+
+  function drawHUD() {
+    const L = LEVELS[level];
+    ctx.fillStyle = 'rgba(30,40,70,.78)'; ctx.fillRect(0, 0, W, 54);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 20px "Trebuchet MS", Arial'; ctx.fillText(`Level ${level + 1}`, 14, 18);
+    ctx.fillStyle = '#ffd23f'; ctx.fillText(`Score ${score} / ${L.goal}`, 14, 40);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#9ef0b0'; ctx.font = 'bold 14px Arial'; ctx.fillText('CATCH ONLY', W / 2, 16);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 26px "Trebuchet MS", Arial'; ctx.fillText(NAMES[L.target], W / 2, 40);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = timeLeft < 10 ? '#ff6b6b' : '#fff'; ctx.font = 'bold 22px "Trebuchet MS", Arial';
+    ctx.fillText(`⏱ ${Math.ceil(timeLeft)}s`, W - 16, 28);
+    ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(0, 54, W, 8);
+    ctx.fillStyle = '#ffd23f'; ctx.fillRect(0, 54, W * Math.min(1, score / L.goal), 8);
+  }
+
+  function render() {
+    ctx.save();
+    if (shake > 0) ctx.translate(rand(-shake, shake), rand(-shake, shake));
+    drawBackground();
+    items.forEach(drawItem);
+    drawBasket();
+    floaters.forEach(f => {
+      ctx.globalAlpha = Math.max(0, f.life);
+      ctx.font = 'bold 26px "Trebuchet MS", Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 5; ctx.strokeStyle = '#fff'; ctx.strokeText(f.text, f.x, f.y);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+      ctx.globalAlpha = 1;
+    });
+    if (state === 'playing' || state === 'between' || state === 'paused') drawHUD();
+    if (flash > 0) { ctx.globalAlpha = flash * .45; ctx.fillStyle = flashColor; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+    ctx.restore();
+  }
+
+  function loop(ts) {
+    const dt = Math.min(.05, (ts - last) / 1000 || 0); last = ts;
+    update(dt); render();
+    requestAnimationFrame(loop);
+  }
+
+  const wrap = document.getElementById('wrap'), stage = document.getElementById('stage');
+  function resize() {
+    const cs = getComputedStyle(wrap);
+    const aw = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const ah = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    if (aw < 50 || ah < 50) return;
+    const ar = Math.max(1.2, Math.min(1.9, aw / ah)), w = Math.min(aw, ah * ar);
+    stage.style.width = w + 'px'; stage.style.height = (w / ar) + 'px';
+    W = Math.round(H * ar); canvas.width = W; canvas.height = H;
+    basket.tx = Math.min(basket.tx, W - basket.w / 2); basket.x = Math.min(basket.x, W - basket.w / 2);
+    items = items.filter(it => it.x < W);
+  }
+  window.addEventListener('resize', resize);
+  document.addEventListener('fullscreenchange', resize);
+  document.getElementById('btnFull').onclick = e => {
+    e.currentTarget.blur();
+    try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {}); } catch (err) {}
+  };
+  resize(); menuScreen();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
